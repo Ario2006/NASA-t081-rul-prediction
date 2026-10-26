@@ -1,5 +1,5 @@
 % ABOUTME: Models and tuning section of the IEEE report (issue #5).
-% ABOUTME: Elastic Net, Random Forest and XGBoost theory, tuning setup, CV results and the RUL cap.
+% ABOUTME: Model theory, tuning, CV results, the RUL cap and what the models rely on.
 \section{Models and Tuning}
 \label{sec:models}
 
@@ -113,7 +113,9 @@ on statistics fitted to training data; they are rebuilt in every fold from
 that fold's training engines and then applied to its validation engines.
 Each model is tuned separately on each feature set, and the configuration
 with the lowest mean validation RMSE is selected. Elastic Net is cheap, so
-its full grid is searched; for Random Forest and XGBoost a fixed number of
+its full grid is searched, solved by coordinate descent on a precomputed
+Gram matrix with up to 100,000 iterations so that every configuration
+converges; for Random Forest and XGBoost a fixed number of
 configurations is drawn at random from the grid with seed 42.
 Table~\ref{tab:search-space} lists the search spaces and the selected
 values. The test set is not used.
@@ -123,15 +125,15 @@ values. The test set is not used.
 \caption{Search spaces. Selected values are in parentheses, given as
 raw / engineered where the two feature sets differ. Random Forest and
 XGBoost sample 6 and 8 configurations from their grids; Elastic Net
-searches all 12.}
+searches all 20.}
 \label{tab:search-space}
 \footnotesize
 \begin{tabular}{llp{2.9cm}}
 \hline
 Model & Hyperparameter & Values (selected) \\
 \hline
-Elastic Net & \texttt{alpha} & 0.1, 0.3, 1.0 (0.1) \\
-            & \texttt{l1\_ratio} & 0.2, 0.5, 0.8, 1.0 (1.0) \\
+Elastic Net & \texttt{alpha} & 0.001, 0.01, 0.1, 0.3, 1.0 (0.1 / 0.001) \\
+            & \texttt{l1\_ratio} & 0.2, 0.5, 0.8, 1.0 (1.0 / 0.8) \\
 \hline
 Random      & \texttt{n\_estimators} & 100, 200 (200 / 100) \\
 Forest      & \texttt{max\_depth} & 8, 12, none (12 / none) \\
@@ -185,7 +187,7 @@ Elastic Net       & raw        & capped   & $20.12 \pm 1.54$ & $16.37 \pm 1.29$ 
 Random Forest     & raw        & capped   & $16.43 \pm 0.77$ & $11.47 \pm 0.71$ & 15.40 & 18.29 \\
 XGBoost           & raw        & capped   & $16.42 \pm 0.87$ & $11.38 \pm 0.70$ & 15.23 & 18.28 \\
 Linear regression & engineered & capped   & $17.07 \pm 0.78$ & $13.72 \pm 0.63$ & 16.89 & 17.65 \\
-Elastic Net       & engineered & capped   & $17.75 \pm 1.06$ & $14.33 \pm 0.85$ & 17.63 & 18.15 \\
+Elastic Net       & engineered & capped   & $17.06 \pm 0.80$ & $13.72 \pm 0.64$ & 16.86 & 17.63 \\
 Random Forest     & engineered & capped   & $14.42 \pm 0.48$ & $9.87 \pm 0.56$  & 10.98 & 15.76 \\
 XGBoost           & engineered & capped   & $\mathbf{13.99} \pm 0.46$ & $\mathbf{9.81} \pm 0.42$ & \textbf{9.88} & \textbf{15.09} \\
 \hline
@@ -209,18 +211,20 @@ clearer advantage is on late-life cycles (9.88 against 10.98).
 
 All tuned models beat the mean baseline. Against the linear regression
 baseline on raw features, both tree ensembles are better on both feature
-sets and Elastic Net is better on engineered features (17.75 against
-20.12). On raw features Elastic Net and linear regression are tied:
-Elastic Net's RMSE is 0.0006 lower and its MAE 0.0015 higher, far inside
-the fold standard deviation. With 15 features and over 16,000 training
-rows per fold, the linear model is limited by bias rather than variance,
-so the penalty has almost nothing to remove, and at small $\alpha$ Elastic
-Net reduces to least squares. On engineered features, Elastic Net is less
-accurate than unregularised linear regression on the same features (17.75
-against 17.07). The selected penalty is pure L1, which makes the model
-sparse by setting some coefficients exactly to zero, but it does not
-improve predictive accuracy here; Elastic Net's gain over the raw baseline
-comes from the engineered features, not from regularisation.
+sets and Elastic Net is better on engineered features (17.06 against
+20.12). On each feature set, Elastic Net ties with unregularised linear
+regression on the same inputs: on raw features its RMSE is 0.0006 lower
+and its MAE 0.0015 higher, and on engineered features its RMSE is 0.003
+lower and its MAE 0.0003 higher, all far inside the fold standard
+deviations. With at most 142 features and over 16,000 training rows per
+fold, the linear model is limited by bias rather than variance, so the
+penalty has almost nothing to remove. On engineered features the error
+rises steadily with $\alpha$ (17.75 at $\alpha = 0.1$ and 19.39 at
+$\alpha = 1$, both pure L1), and the search selects the smallest value in
+the grid, $\alpha = 0.001$; smaller values only bring Elastic Net closer
+to least squares, whose score is the linear regression row. The penalty
+does not improve predictive accuracy here; Elastic Net's gain over the
+raw baseline comes from the engineered features, not from regularisation.
 
 \subsection{Effect of the RUL cap}
 Capping assumes that degradation is not visible early in life, so a model
@@ -247,3 +251,104 @@ Table~\ref{tab:search-space}. The selected configuration of every model on
 both feature sets is saved in \texttt{results/best\_params.json}, together
 with the sensor list and window lengths needed to rebuild the features, so
 test evaluation uses exactly the configurations chosen here.
+
+\subsection{Explainability}
+\label{sec:explain}
+We examine what each selected model relies on, using training engines
+only (\texttt{notebooks/05\_explain.ipynb}). The 142 engineered columns
+are strongly correlated, since each sensor contributes its raw reading and
+a rolling mean, standard deviation and slope over three windows. All
+results are therefore also summed into 16 groups: one per sensor, plus
+\texttt{cycle} and \texttt{health\_index}.
+
+\emph{Impurity importance} is the training loss reduction from the splits
+that use a feature: the mean decrease in squared error for Random Forest
+and \texttt{total\_gain} for XGBoost (XGBoost's default \texttt{gain} is an
+average per split and cannot be summed over a group). \emph{Permutation
+importance}~\cite{breiman2001rf} is the rise in RMSE when a feature's
+values are shuffled across rows. We compute it on held-out engines: in
+each of the five engine folds the model is refitted on the training
+engines and shuffled on the validation engines, five times per fold. All
+columns of a group are shuffled with the same row order. Shuffling one
+column at a time would understate a sensor whose information is
+duplicated in its other columns, because the model can recover it from
+the unshuffled copies.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/explain_importance.png}
+  \caption{Importance of each sensor group as a share of the total:
+  impurity importance on training rows and grouped permutation importance
+  on held-out engines (mean and fold standard deviation over five
+  engine folds).}
+  \label{fig:explain-importance}
+\end{figure*}
+
+Both tree ensembles depend most on the health index
+(Fig.~\ref{fig:explain-importance}). Shuffling it on held-out engines
+raises RMSE by 10.96 cycles for XGBoost and 7.36 for Random Forest, and
+shuffling \texttt{cycle} by 4.84 and 5.22; no other group adds more than
+1.62. Below these, the two measures disagree. \texttt{s\_4} receives 26\%
+of Random Forest's impurity reduction but costs only 1.62 cycles when
+shuffled, because its information is also carried by \texttt{s\_11}, the
+other degrading sensors and the health index. Impurity importance credits
+whichever correlated feature a split happened to use, while permutation
+importance measures what the model loses when that information is gone.
+\texttt{cycle} shows the reverse: 8 to 10\% of impurity reduction but 20
+to 26\% of permutation importance, since no other input carries the
+engine's age. Impurity importance also describes the training rows,
+including splits that fit noise, while held-out permutation importance
+measures dependence on unseen engines.
+
+A SHAP value~\cite{lundberg2017shap} is the contribution of one feature to
+one prediction relative to the model's average prediction. For each row
+the contributions add up exactly: the base value (the mean prediction)
+plus the row's SHAP values equals the prediction. Each value is the
+feature's Shapley value, its average marginal effect over all orders in
+which features can be added. \texttt{shap.TreeExplainer} computes these
+exactly for tree ensembles~\cite{lundberg2020tree}. We explain the
+XGBoost model fitted on all training engines on 2,000 seeded training
+rows; the largest additivity gap is $1.4 \times 10^{-4}$ cycles, around
+a base value of 86.83 (Fig.~\ref{fig:explain-shap}). A low health index
+lowers the prediction by up to 40 cycles, and late cycles lower it. The sensor effects are smaller
+and follow the degradation trends: high recent means and positive slopes
+of \texttt{s\_2}, \texttt{s\_4}, \texttt{s\_11} and \texttt{s\_15} lower
+the predicted RUL, and negative slopes of \texttt{s\_7} and \texttt{s\_12}
+lower it. Every slope among the top 20 columns uses the 20-cycle window.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{../figures/explain_shap_summary.png}
+  \caption{SHAP values of the selected XGBoost model on 2,000 training
+  rows, for the 20 columns with the largest mean absolute SHAP value.
+  Colour is the feature's value.}
+  \label{fig:explain-shap}
+\end{figure}
+
+Elastic Net standardises its inputs, so its coefficients are comparable in
+size. At the selected penalty ($\alpha = 0.001$) no coefficient is zero,
+and the largest after the health index are rolling means of one sensor
+over two windows with opposite signs (\texttt{s\_11\_mean\_20} $+22.5$,
+\texttt{s\_11\_mean\_10} $-20.1$). Together they act as a trend estimate,
+and neither sign means anything alone. Strengthening a pure L1 penalty
+zeroes 38 coefficients at $\alpha = 0.1$ and 116 at $\alpha = 1$. The
+single-cycle sensor readings are dropped first, as noisier copies of
+their 5-cycle means, but every sensor keeps at least one column even at
+$\alpha = 1$. With correlated inputs L1 keeps one column of a correlated
+set somewhat arbitrarily, so a zero means ``redundant given the others'',
+not ``unrelated to RUL''. These sparser models are also less accurate
+(17.75 and 19.39 against 17.06).
+
+The models do rely on the sensors the exploratory analysis found
+degrading, but mostly through the health index, a linear combination of
+all 14 sensors whose largest weights are on \texttt{s\_11}, \texttt{s\_9},
+\texttt{s\_12}, \texttt{s\_4} and \texttt{s\_7}. Among individual sensors,
+\texttt{s\_4}, \texttt{s\_15} and \texttt{s\_2}, three of the four that
+rise towards failure, lead XGBoost's SHAP ranking. \texttt{s\_7} and
+\texttt{s\_12} correlate strongly with RUL but rank low, since their
+information is largely duplicated by \texttt{s\_4}, \texttt{s\_11} and the
+health index. Reliance on \texttt{cycle}, second under SHAP and permutation
+importance, means the models partly predict from age. This works on
+FD001, where every engine starts in normal condition and training
+lifetimes span 128 to 362 cycles, but it would transfer less well to
+fleets with different lifetimes.

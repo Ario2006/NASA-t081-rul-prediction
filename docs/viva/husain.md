@@ -1,9 +1,11 @@
 # Viva notes: Husain
 
-My part: training and tuning the models. Code: `src/rul/models.py`,
-`notebooks/03_models.ipynb`. Results: `results/models_cv.csv`,
-`results/models_search.csv`, `results/best_params.json`. Report:
-`report/sections/models.tex`.
+My part: training and tuning the models, then explaining what they rely
+on. Code: `src/rul/models.py`, `src/rul/explain.py`,
+`notebooks/03_models.ipynb`, `notebooks/05_explain.ipynb`. Results:
+`results/models_cv.csv`, `results/models_search.csv`,
+`results/best_params.json`, `results/explain_*.csv`, figures
+`figures/explain_*.png`. Report: `report/sections/models.tex`.
 
 ## My part in plain words
 
@@ -28,7 +30,7 @@ are rebuilt inside every fold from that fold's training engines only.
 |---|---|---|
 | Mean baseline | 41.67 | – |
 | Linear regression | 20.12 | 17.07 |
-| Elastic Net | 20.12 | 17.75 |
+| Elastic Net | 20.12 | 17.06 |
 | Random Forest | 16.43 | 14.42 |
 | **XGBoost** | 16.42 | **13.99** |
 
@@ -68,13 +70,16 @@ Minimise squared error + α·ρ·|β|₁ + α·(1−ρ)/2·|β|₂².
   feature units. So a `StandardScaler` comes first, in one `Pipeline`, and
   is fitted on each fold's training engines only.
 
-Our result: the best setting was α = 0.1, ρ = 1.0 (pure L1) on both
-feature sets. On engineered features, in each fold the L1 penalty set
-roughly a quarter of the 142 coefficients (30 to 43) exactly to zero. But
-plain linear regression on the same engineered features scores 17.07
-against Elastic Net's 17.75. So the penalty buys sparsity (a simpler
-model), not accuracy. The improvement over raw features comes from the
-features, not the penalty.
+Our result: on engineered features the best setting was the weakest
+penalty in the grid, α = 0.001 (ρ = 0.8), with RMSE 17.06, a tie with
+plain linear regression on the same features (17.07). The error rises
+steadily as α grows: 17.75 at α = 0.1 and 19.39 at α = 1 (pure L1). On
+raw features α = 0.1, ρ = 1 ties with linear regression too. So the
+penalty does not buy accuracy here. A stronger penalty buys sparsity (at
+α = 0.1 the L1 penalty zeroes 38 of 142 coefficients) but costs accuracy.
+The improvement over raw features comes from the features, not the
+penalty. The grid stops at α = 0.001 because smaller α only moves Elastic
+Net closer to least squares, which we already score.
 
 ### Bagging vs boosting
 | | Bagging (Random Forest) | Boosting (XGBoost) |
@@ -100,8 +105,11 @@ derivative of the loss to pick splits.
 Selected values in brackets as raw / engineered.
 
 **Elastic Net**
-- `alpha` {0.1, 0.3, 1.0} [0.1]: penalty strength.
-- `l1_ratio` {0.2, 0.5, 0.8, 1.0} [1.0]: share of L1 in the penalty.
+- `alpha` {0.001, 0.01, 0.1, 0.3, 1.0} [0.1 / 0.001]: penalty strength.
+- `l1_ratio` {0.2, 0.5, 0.8, 1.0} [1.0 / 0.8]: share of L1 in the penalty.
+- Fitted with up to 100,000 coordinate descent iterations on a
+  precomputed Gram matrix (XᵀX, 142 × 142), so even the weakest penalty
+  converges; with 10,000 iterations α ≤ 0.01 did not.
 
 **Random Forest**
 - `n_estimators` {100, 200} [200 / 100]: number of trees. More trees lower
@@ -173,15 +181,17 @@ They are tied: RMSE 0.0006 lower, MAE 0.0015 higher, while folds vary by
 about 1.5. A penalty lowers variance, but with 15 features and 16,000+ rows
 per fold linear regression has almost no variance to remove. Its problem
 is bias (it is linear in 15 raw inputs), and a penalty cannot fix bias. At
-small α Elastic Net becomes linear regression. Even on the 142 engineered
-features the penalty does not help accuracy: plain linear regression gets
-17.07, Elastic Net 17.75. What helps is the features (20.12 → 17.07).
+small α Elastic Net becomes linear regression. On the 142 engineered
+features the search also picks the weakest penalty and ties linear
+regression (17.06 vs 17.07). What helps is the features
+(20.12 → 17.07).
 
 **3. Why combine L1 and L2 instead of just Lasso?**
 Lasso picks one feature from a group of correlated features almost at
 random, and the pick changes with the data. L2 spreads weight and keeps
 the fit stable. Elastic Net lets the data choose the mix; here the search
-picked pure L1 (ρ = 1), which is still part of the Elastic Net family.
+picked ρ = 1 (pure L1) on raw features and ρ = 0.8 on engineered features,
+though with α so small the mix hardly matters.
 
 **4. Why scale features for Elastic Net but not for the trees?**
 The penalty adds up coefficient sizes, and a coefficient's size depends on
@@ -191,7 +201,7 @@ threshold, so trees don't care.
 
 **5. Why random search for RF and XGBoost but a full grid for Elastic
 Net?**
-Elastic Net is fast, so all 12 combinations are cheap. RF and XGBoost
+Elastic Net is fast, so all 20 combinations are cheap. RF and XGBoost
 grids have 54 and 216 combinations, and a full search with 5 folds on
 both feature sets would take hours. A random sample of 6 and 8 covers the
 range of every hyperparameter at a fraction of the cost. Usually only a
@@ -201,10 +211,10 @@ values of each than a grid of the same size.
 **6. How do you know you didn't overfit the hyperparameters to the
 validation folds?**
 I can't fully. The same folds pick the best configuration and report its
-score, so that score is a bit optimistic: out of 26 tries, the winner is
+score, so that score is a bit optimistic: out of 34 tries, the winner is
 partly the one that got lucky on these folds. This is selection bias, and
 it is separate from leakage. Grouping by engine stops leakage between
-engines; a small search (26 configurations per feature set) and averaging
+engines; a small search (34 configurations per feature set) and averaging
 over 5 folds keep the optimism small, but neither removes it. Nested cross
 validation would (an inner loop to tune, an outer loop to score). We rely
 instead on the test set: #6 scores it once with the frozen parameters from
@@ -237,6 +247,113 @@ variance. Random Forest: keeps the low bias, cuts variance by averaging
 decorrelated trees. XGBoost: starts with high-bias shallow trees and cuts
 bias with each round; variance is controlled by the learning rate, depth,
 `reg_lambda` and subsampling.
+
+## Explainability: what the models rely on
+
+### Sensor groups
+The 142 columns are 10 per sensor (raw, mean/std/slope × 3 windows) plus
+`cycle` and `health_index`. They are very correlated, so I also sum every
+result into 16 groups: one per sensor, plus `cycle` and `health_index`.
+`sensor_group` in `src/rul/explain.py` maps `s_2_mean_5` → `s_2`.
+
+### Impurity importance
+How much the training loss went down at splits on that feature, added up.
+Random Forest: `feature_importances_` (mean decrease in squared error).
+XGBoost: `total_gain`. I don't use the default `gain` because it is the
+*average* gain per split: a feature used once with a big gain looks
+important, and averages can't be summed over a group.
+
+Problems: it is measured on training rows (so splits that fit noise count),
+and with correlated features the credit goes to whichever one the tree
+happened to split on.
+
+### Permutation importance
+Shuffle a feature's values across rows and see how much RMSE goes up. The
+link between that feature and the target is broken, everything else stays.
+I do it on held-out engines: in each of the 5 folds, fit on the training
+engines, shuffle on the validation engines, 5 shuffles, average.
+
+**Grouped:** I shuffle all 10 columns of one sensor together with the same
+row order. If I shuffled only `s_4_mean_10`, the model could still read
+`s_4_mean_5`, so `s_4` would look unimportant.
+
+### Why they disagree (the viva question)
+| | Impurity | Permutation |
+|---|---|---|
+| Data | training rows | held-out engines |
+| Measures | how the trees were built | how much accuracy depends on it |
+| Correlated features | credit goes to whichever got the split | only what the others can't replace counts |
+
+Our example: `s_4` gets 26% of Random Forest's impurity importance but
+shuffling it costs only 1.62 cycles, because `s_11`, other degrading
+sensors and the health index carry the same information. `cycle` is the
+opposite: 8% impurity but 26% of permutation importance, because nothing
+else tells the model the engine's age.
+
+### SHAP (the other viva question)
+A SHAP value is how much one feature pushed one prediction away from the
+average prediction. For every row:
+
+prediction = base value + sum of that row's SHAP values
+
+The base value is the mean prediction (86.83 cycles here). Each SHAP value
+is the feature's Shapley value from game theory: its average marginal
+effect over every order in which the features could be added. Features are
+the "players", the prediction is the "payout", and the payout is shared
+fairly. `shap.TreeExplainer` computes them exactly for trees, fast. I
+checked the sum: base + SHAP is at most 0.00014 cycles off the prediction.
+
+Reading the beeswarm (`figures/explain_shap_summary.png`): one dot per row,
+x = SHAP value, colour = feature value. Health index low (blue) → up to
+−40 cycles. Late cycles → lower prediction. High `s_4`, `s_2`, `s_11`,
+`s_15` means and rising slopes → lower RUL (they rise towards failure).
+Falling `s_7`, `s_12` slopes → lower RUL.
+
+Group SHAP: SHAP values add, so a sensor's SHAP for one row is the sum over
+its 10 columns. Mean |group SHAP|: health index 15.3, `cycle` 6.8, `s_4`
+3.4, `s_15` 2.9, `s_2` 2.8.
+
+### Elastic Net zeros
+At the selected α = 0.001 none of the 142 coefficients is zero. The biggest
+ones come in opposite-sign pairs (`s_11_mean_20` +22.5, `s_11_mean_10`
+−20.1): together they are a trend (long average minus short average), so
+one sign alone means nothing. With pure L1, α = 0.1 zeroes 38 and α = 1
+zeroes 116. The raw single-cycle readings go first (each is a noisy copy of
+its 5-cycle mean), but every sensor keeps at least one column. A zero means
+"redundant given the others", not "useless", because L1 picks one of a
+correlated group somewhat arbitrarily. The sparser models are worse (17.75,
+19.39 vs 17.06).
+
+### Does it match the EDA?
+Yes, mostly through the health index (a linear mix of all 14 sensors,
+biggest weights on `s_11`, `s_9`, `s_12`, `s_4`, `s_7`). Health index +
+`cycle` = 45% of SHAP and 62 to 65% of permutation importance. Of the
+single sensors, `s_4`, `s_15`, `s_2` lead SHAP: three of the four the EDA
+saw rising. `s_7` and `s_12` correlate strongly (0.73, 0.75) but rank low,
+because `s_4`, `s_11` and the health index already carry their signal.
+`s_9` and `s_14` had the weakest EDA correlation and rank mid-table on
+impurity and SHAP. But on held-out engines `s_9` is XGBoost's most
+important single sensor (1.05 cycles, ahead of `s_15` 1.02 and `s_4` 0.89)
+and Random Forest's second (1.45, behind `s_4` 1.62). Its trend goes the
+"wrong" way in 29% of engines (40% for `s_14`), which weakens the pooled
+correlation but not what the model gets from it. This is the impurity vs
+permutation disagreement in one example.
+
+`cycle` mattering means the model partly predicts from age. Fine on FD001
+(every engine starts healthy, lifetimes 128 to 362), risky on a fleet with
+very different lifetimes.
+
+### Likely questions
+**Why permute on held-out engines, not training rows?** On training rows,
+a model that memorised noise in a feature would look like it depends on it.
+On unseen engines only real dependence costs accuracy.
+
+**Why not just use XGBoost's built-in importance?** It is impurity-style,
+on training data, and its default (`gain`) is an average per split. I use
+it, but next to permutation (held-out) and SHAP (per prediction).
+
+**Is SHAP causal?** No. It explains the model, not the engine. A big SHAP
+value for `cycle` means the model uses age, not that age causes failure.
 
 ## Things I must check before the viva
 - The test results from #6 (`results/test_metrics.csv`), and whether

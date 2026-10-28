@@ -62,9 +62,10 @@ reduction but costs only 1.62 cycles when shuffled, so impurity rankings
 alone would overstate its role.
 
 \subsection{Gap to deep sequence models}
-Four published deep models are more accurate than our best model by 0.8
-to 1.4 cycles of RMSE against clipped labels, and on the score $S$ six
-published models do better than our Random Forest. These models learn
+Four published deep models are more accurate than our Random Forest and
+XGBoost by 0.8 to 1.5 cycles of RMSE against clipped labels, and on the
+score $S$ six published models do better than our Random Forest and eight
+better than the selected XGBoost. These models learn
 features from windows of the raw sensor sequence. Our features look back
 at most 20 cycles and use window lengths chosen by hand, so they cannot
 represent how long a sensor has been drifting or when its drift began to

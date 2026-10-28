@@ -12,8 +12,10 @@ index) are fitted on the training engines and applied unchanged to the test
 engines. Features are computed over each test engine's full observed
 history, and the model predicts once per engine at its last observed cycle
 (Section~\ref{sec:evaluation}). Predictions are scored against the true,
-uncapped RUL. All numbers in this section are taken from
-\texttt{results/test\_metrics.csv}.
+uncapped RUL. The overall and stage metrics are taken from
+\texttt{results/test\_metrics.csv} and the published comparison from
+\texttt{results/test\_published\_comparison.csv}; the bootstrap intervals
+and the error by RUL bucket are computed in \texttt{notebooks/04\_results.ipynb}.
 
 \begin{table*}[t]
 \centering
@@ -73,7 +75,7 @@ stage, where XGBoost's RMSE falls from 13.17 to 7.03.
 Fig.~\ref{fig:results-pred} and Fig.~\ref{fig:results-buckets} show how
 the error depends on the true RUL. For both tree ensembles the error is
 smallest close to failure, with RMSE of about 7 cycles for true RUL of at
-most 25 and about 8 between 26 and 50. It rises to between 16 and 17.5
+most 25 and about 8 between 26 and 50. It rises to between 15.7 and 17.5
 cycles from 51 to 125. Elastic Net is close to the ensembles far from
 failure but about twice as inaccurate in the late stage, which is where the
 trees gain most. Between 51 and 75 cycles all three models predict too late
@@ -129,7 +131,7 @@ al.~\cite{li2018dcnn} (12.61), the attention model of Ragab et
 al.~\cite{ragab2020attention} (12.63), HDNN (13.02) and BLCNN (13.18), between
 0.8 and 1.4 cycles of RMSE ahead of our Random Forest. On the score $S$ our
 position is weaker: six published models score lower than our Random
-Forest (310), including BiLSTM-ED and CNN-LSTM, whose RMSE is higher than
+Forest (310), and eight lower than XGBoost (347), including BiLSTM-ED and CNN-LSTM, whose RMSE is higher than
 ours but whose predictions are less often badly late. The models ahead of
 ours learn features from windows of the raw sensor sequence; phase 2 of this
 project tests sequence models of this kind. Published protocols differ in

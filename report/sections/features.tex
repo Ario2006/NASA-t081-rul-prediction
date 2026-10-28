@@ -114,6 +114,23 @@ an out of fold correlation of $0.87 \pm 0.02$ with the capped RUL (0.86 in
 sample, so the fit does not overfit). For comparison, the strongest single
 feature, a 20 cycle rolling mean, reaches $|r| = 0.80$ in sample.
 
+Fig.~\ref{fig:features-trends} shows these features for two training
+engines: the 20 cycle rolling mean removes most of the cycle to cycle
+noise, the 20 cycle slope moves away from zero as each engine nears
+failure, and the HI falls from near 0.8 towards 0 along each life.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/features_degradation_trends.png}
+  \caption{Engineered features for training engines 1 and 2. Top: regime
+  normalised readings of \texttt{s\_11} (rises with wear) and
+  \texttt{s\_12} (falls with wear), thin, with their 20 cycle rolling
+  means. Middle: 20 cycle least squares slopes; the axis is scaled to
+  cycles 20 onwards, since slopes over the first few partial windows are
+  large and meaningless. Bottom: health index and capped RUL target.}
+  \label{fig:features-trends}
+\end{figure*}
+
 \subsection{Ablation}
 Table~\ref{tab:feature-ablation} adds the feature families one at a time
 to a Random Forest, scored with five fold cross validation grouped by

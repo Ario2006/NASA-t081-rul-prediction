@@ -332,10 +332,10 @@ of one sensor over two windows with opposite signs, such as
 \texttt{s\_11\_mean\_20} $+22.5$ with \texttt{s\_11\_mean\_10} $-20.1$,
 or \texttt{s\_12\_mean\_20} $-21.1$ with \texttt{s\_12\_mean\_10} $+16.3$.
 Each pair acts as a trend estimate, and neither sign means anything alone. Strengthening a pure L1 penalty
-zeroes 38 coefficients at $\alpha = 0.1$ and 116 at $\alpha = 1$. The
-single-cycle sensor readings are dropped first, as noisier copies of
-their 5-cycle means, but every sensor keeps at least one column even at
-$\alpha = 1$. With correlated inputs L1 keeps one column of a correlated
+zeroes 38 coefficients at $\alpha = 0.1$ and 116 at $\alpha = 1$. By
+$\alpha = 1$ every single-cycle sensor reading is gone, as a noisier copy
+of its 5-cycle mean, and only \texttt{cycle} remains of the raw columns,
+but every sensor keeps at least one column. With correlated inputs L1 keeps one column of a correlated
 set somewhat arbitrarily, so a zero means ``redundant given the others'',
 not ``unrelated to RUL''. These sparser models are also less accurate
 (17.75 and 19.39 against 17.06).

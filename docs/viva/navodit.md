@@ -244,8 +244,8 @@ models clearly ahead, then us, then the rest.
 
 **10. Walk us through the report.**
 IEEE conference format (`\documentclass[conference]{IEEEtran}`),
-`report/main.tex` with one `\input` per section, built with
-`latexmk -pdf main.tex` from `report/`. Every figure comes from
+`report/main.tex` with one `\input` per section, built from `report/` with
+`pdflatex main`, `bibtex main`, then `pdflatex main` twice. Every figure comes from
 `figures/`, every number from `results/`, and someone else reads it
 through to check the numbers agree. Sections and owners are in the table
 below.
@@ -257,15 +257,15 @@ below.
 | Abstract | `report/main.tex` | Navodit |
 | Introduction | `report/sections/intro.tex` | Navodit |
 | Related Work | `report/sections/related.tex` | Navodit |
-| Dataset and EDA | `report/sections/data.tex` | Trishit |
-| Feature Engineering | `report/sections/features.tex` | Aryan |
-| Methods and Theory | `report/sections/models.tex` | Husain |
+| Dataset and Exploratory Analysis | `report/sections/data.tex` | Trishit |
 | Evaluation Protocol | `report/sections/evaluation.tex` | Sarvesh |
-| Results | `report/sections/results.tex` | Sarvesh |
+| Degradation Features | `report/sections/features.tex` | Aryan |
+| Models and Tuning | `report/sections/models.tex` | Husain |
 | Explainability | subsection of `models.tex` (`sec:explain`) | Husain |
+| Test Set Results | `report/sections/results.tex` | Sarvesh |
 | Discussion and Limitations | `report/sections/discussion.tex` | Navodit |
-| Conclusion and Phase 2 plan | `report/sections/conclusion.tex` | Navodit |
-| Contributions (who did what) | `report/sections/contributions.tex` | Navodit |
+| Conclusion and Phase 2 Plan | `report/sections/conclusion.tex` | Navodit |
+| Contributions | `report/sections/contributions.tex` | Navodit |
 | References | `report/refs.bib` | everyone adds theirs |
 
 Building notes (`report/README.md`): compile with `report/` as the working

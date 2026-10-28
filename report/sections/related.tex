@@ -83,7 +83,7 @@ raw sensor windows. This work asks how far hand-built degradation features
 take classical models. For each of the 14 informative sensors we compute
 the rolling mean, standard deviation and least squares slope over 5, 10
 and 20 cycles, after operating regime normalisation, and keep the
-normalised readings, the cycle number and a regression-based health index
+raw readings, the cycle number and a regression-based health index
 (Section~\ref{sec:features}). Elastic Net, Random Forest and XGBoost are
 trained on these features and tuned with cross validation grouped by
 engine, so that no engine appears in both the training and validation

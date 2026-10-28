@@ -318,8 +318,10 @@ At the selected α = 0.001 none of the 142 coefficients is zero. The biggest
 ones come in opposite-sign pairs (`s_11_mean_20` +22.5, `s_11_mean_10`
 −20.1): together they are a trend (long average minus short average), so
 one sign alone means nothing. With pure L1, α = 0.1 zeroes 38 and α = 1
-zeroes 116. The raw single-cycle readings go first (each is a noisy copy of
-its 5-cycle mean), but every sensor keeps at least one column. A zero means
+zeroes 116. The raw single-cycle readings are not dropped first (at α = 0.01
+all are kept while rolling columns are already zeroed), but by α = 1 every one
+is gone (each is a noisy copy of its 5-cycle mean). Every sensor still keeps
+at least one column. A zero means
 "redundant given the others", not "useless", because L1 picks one of a
 correlated group somewhat arbitrarily. The sparser models are worse (17.75,
 19.39 vs 17.06).

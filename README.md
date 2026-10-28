@@ -28,8 +28,9 @@ Random Forest and XGBoost are tied: a paired bootstrap over the test engines put
 gap between them inside its 95% interval. Against test labels clipped at 125, as many
 published FD001 results are scored, Random Forest reaches RMSE 14.02 and XGBoost 14.08.
 That beats published Random Forest, gradient boosting and six of ten published deep
-models, and is 0.8 to 1.4 cycles behind four deep models (RMSE 12.61 to 13.18). On the
-NASA score, six published models do better. See `report/sections/results.tex`.
+models, and is 0.8 to 1.5 cycles behind four deep models (RMSE 12.61 to 13.18). On the
+NASA score, six published models do better than Random Forest (310) and eight do better than
+XGBoost (347). See `report/sections/results.tex`.
 
 ## Reproduce
 
